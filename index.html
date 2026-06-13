@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="hi" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0A0A0F">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="Camera aur Gallery se PDF banao — bilkul free">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon-192.png">
+  <title>SnapPDF</title>
+
+  <!-- ── Tailwind CDN ────────────────────── -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            dp: {            /* dark palette */
+              950: '#0A0A0F',
+              900: '#111118',
+              800: '#18181F',
+              700: '#1F1F28',
+              600: '#28283A',
+            },
+            violet: { DEFAULT: '#7C6FF7', light: '#9B90F9', soft: 'rgba(124,111,247,0.12)' },
+            amber: {  DEFAULT: '#FF9F40', soft: 'rgba(255,159,64,0.12)' },
+            em:    { DEFAULT: '#3DD68C', soft: 'rgba(61,214,140,0.10)' },
+            danger:'#FF5F5F',
+          },
+          borderRadius: { xl2: '20px', xl3: '26px', xl4: '32px' },
+        }
+      }
+    }
+  </script>
+
+  <!-- ── jsPDF ──────────────────────────── -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <!-- ── Google Fonts ──────────────────── -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      overscroll-behavior: none;
+    }
+    .font-display { font-family: 'Syne', sans-serif; }
+
+    /* Glow effects */
+    .glow-violet { box-shadow: 0 8px 32px rgba(124,111,247,0.38); }
+    .glow-em     { box-shadow: 0 6px 24px rgba(61,214,140,0.28); }
+
+    /* Spinner */
+    .spin {
+      border: 3px solid #28283A;
+      border-top-color: #7C6FF7;
+      border-radius: 50%;
+      animation: spin 0.72s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Card pop in */
+    .card-pop { animation: pop .22s cubic-bezier(.34,1.5,.64,1); }
+    @keyframes pop { from { opacity:0; transform:scale(.84); } to { opacity:1; transform:scale(1); } }
+
+    /* Progress bar */
+    .prog { transition: width .3s ease; }
+
+    /* Toast */
+    .toast-in { animation: tIn .22s ease forwards; }
+    @keyframes tIn { from { opacity:0; transform:translateX(-50%) translateY(10px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
+
+    /* Install banner slide */
+    #installBanner { transition: transform .3s ease; }
+
+    ::-webkit-scrollbar { display: none; }
+  </style>
+</head>
+
+<body class="dark bg-dp-950 text-white min-h-screen max-w-sm mx-auto pb-28 overflow-x-hidden">
+
+<!-- ═══ INSTALL BANNER (shows only when PWA installable) ═════════════ -->
+<div id="installBanner" class="hidden fixed top-0 inset-x-0 max-w-sm mx-auto z-50
+     bg-dp-800/95 backdrop-blur-xl border-b border-white/[.06] px-4 py-3 flex items-center gap-3">
+  <div class="w-10 h-10 rounded-xl bg-violet flex items-center justify-center shrink-0 glow-violet">
+    <svg class="w-5 h-5 fill-white" viewBox="0 0 24 24">
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zm-1 7H8m5 4H8m2-8V2.5L18.5 9H13z"/>
+    </svg>
+  </div>
+  <div class="flex-1 min-w-0">
+    <p class="text-sm font-semibold">App Install Karo</p>
+    <p class="text-xs text-gray-500">Home screen par asli app jaisi</p>
+  </div>
+  <button id="installBtn"
+    class="text-xs font-bold text-violet px-3 py-1.5 rounded-lg bg-violet/10 border border-violet/20 shrink-0">
+    Install
+  </button>
+  <button id="dismissBtn" class="text-gray-600 text-lg leading-none shrink-0">×</button>
+</div>
+
+<!-- ═══ HEADER ═══════════════════════════════════════════════════════ -->
+<header class="sticky top-0 z-10 px-5 pt-12 pb-4"
+        style="background:linear-gradient(to bottom,#0A0A0F 68%,transparent)">
+  <div class="flex items-center justify-between">
+
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-violet flex items-center justify-center glow-violet">
+        <svg class="w-5 h-5 fill-white" viewBox="0 0 24 24">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zm-1 7H8m5 4H8m2-8V2.5L18.5 9H13z"/>
+        </svg>
+      </div>
+      <span class="font-display text-[22px] font-black tracking-tight">
+        Snap<span class="text-violet">PDF</span>
+      </span>
+    </div>
+
+    <span class="text-[10px] font-bold tracking-widest text-gray-700
+                 bg-dp-800 border border-white/[.05] px-3 py-1.5 rounded-full uppercase">
+      Dark Mode
+    </span>
+  </div>
+</header>
+
+<!-- ═══ MAIN VIEW ════════════════════════════════════════════════════ -->
+<main id="mainView" class="px-4 flex flex-col gap-4">
+
+  <!-- Drop zone -->
+  <div id="dropZone"
+       class="relative rounded-xl4 border border-dashed border-violet/25 bg-violet/[.06]
+              p-8 flex flex-col items-center gap-3 text-center overflow-hidden
+              transition-colors duration-200">
+    <div class="absolute inset-0 bg-gradient-to-b from-violet/[.05] to-transparent pointer-events-none"></div>
+    <div class="w-14 h-14 rounded-full bg-dp-700 flex items-center justify-center">
+      <svg class="w-7 h-7" fill="none" viewBox="0 0 24 24"
+           stroke="#7C6FF7" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/>
+        <path d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"/>
+      </svg>
+    </div>
+    <h3 class="font-display font-black text-lg">Images Yahan Drop Karo</h3>
+    <p class="text-sm text-gray-600 leading-relaxed">
+      Ya neeche Camera/Gallery<br>buttons se select karo
+    </p>
+  </div>
+
+  <!-- Pick buttons -->
+  <div class="grid grid-cols-2 gap-3">
+
+    <!-- Camera -->
+    <label for="camInput"
+      class="flex flex-col items-center gap-3 p-5
+             bg-dp-900 border border-white/[.05] rounded-xl2
+             cursor-pointer transition-all duration-100
+             active:scale-95 active:bg-dp-700">
+      <div class="w-12 h-12 rounded-2xl bg-amber-soft flex items-center justify-center">
+        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24"
+             stroke="#FF9F40" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+          <circle cx="12" cy="13" r="4"/>
+        </svg>
+      </div>
+      <div class="text-center">
+        <p class="text-sm font-semibold text-gray-200">Camera</p>
+        <p class="text-xs text-gray-600 mt-0.5">Photo lo</p>
+      </div>
+    </label>
+    <input type="file" id="camInput" accept="image/*" capture="environment" class="hidden">
+
+    <!-- Gallery -->
+    <label for="galInput"
+      class="flex flex-col items-center gap-3 p-5
+             bg-dp-900 border border-white/[.05] rounded-xl2
+             cursor-pointer transition-all duration-100
+             active:scale-95 active:bg-dp-700">
+      <div class="w-12 h-12 rounded-2xl bg-violet-soft flex items-center justify-center">
+        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24"
+             stroke="#7C6FF7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+          <circle cx="8.5" cy="8.5" r="1.5"/>
+          <polyline points="21 15 16 10 5 21"/>
+        </svg>
+      </div>
+      <div class="text-center">
+        <p class="text-sm font-semibold text-gray-200">Gallery</p>
+        <p class="text-xs text-gray-600 mt-0.5">Photos chunno</p>
+      </div>
+    </label>
+    <input type="file" id="galInput" accept="image/*" multiple class="hidden">
+
+  </div>
+
+  <!-- Images list (hidden until images added) -->
+  <div id="imgSection" class="hidden flex-col gap-3">
+    <div class="flex items-center justify-between px-1">
+      <span class="text-[10px] font-bold uppercase tracking-[.12em] text-gray-700">Pages</span>
+      <div class="flex items-center gap-4">
+        <span id="imgCount" class="text-xs text-gray-700">0 images</span>
+        <button id="clearBtn" class="text-xs font-semibold text-danger">Clear all</button>
+      </div>
+    </div>
+    <div id="imgGrid" class="grid grid-cols-2 gap-3"></div>
+  </div>
+
+  <!-- Empty state -->
+  <div id="emptyHint" class="flex flex-col items-center text-center py-8 gap-3">
+    <div class="w-20 h-20 rounded-3xl bg-dp-800 flex items-center justify-center mb-2">
+      <svg class="w-10 h-10" fill="none" viewBox="0 0 24 24"
+           stroke="#2A2A38" stroke-width="1.3" stroke-linecap="round">
+        <rect x="3" y="3" width="18" height="18" rx="2"/>
+        <circle cx="8.5" cy="8.5" r="1.5"/>
+        <polyline points="21 15 16 10 5 21"/>
+      </svg>
+    </div>
+    <h3 class="font-display font-black text-xl text-gray-700">Koi Image Nahi</h3>
+    <p class="text-sm text-gray-700 leading-relaxed">
+      <span class="text-amber font-semibold">Camera</span> se photo lo ya<br>
+      <span class="text-violet font-semibold">Gallery</span> se choose karo
+    </p>
+  </div>
+
+</main>
+
+<!-- ═══ SUCCESS VIEW ══════════════════════════════════════════════════ -->
+<main id="successView" class="hidden px-4">
+  <div class="bg-dp-800 border border-em/20 rounded-xl4 p-7
+              flex flex-col items-center gap-5 text-center">
+    <div class="w-20 h-20 rounded-full bg-em-soft flex items-center justify-center">
+      <svg class="w-10 h-10" fill="none" viewBox="0 0 24 24"
+           stroke="#3DD68C" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="20 6 9 17 4 12"/>
+      </svg>
+    </div>
+    <div>
+      <h3 class="font-display font-black text-2xl">PDF Tayyar! 🎉</h3>
+      <p id="successMeta" class="text-sm text-gray-500 mt-1"></p>
+    </div>
+    <a id="dlBtn" href="#" download="SnapPDF.pdf"
+       class="w-full py-4 rounded-2xl font-display font-black text-base
+              text-em bg-em-soft border border-em/20
+              flex items-center justify-center gap-2
+              active:scale-95 transition-transform glow-em">
+      <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24"
+           stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+        <polyline points="17 8 12 13 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="13"/>
+      </svg>
+      PDF Download Karo
+    </a>
+    <button id="restartBtn" class="text-sm text-gray-600 font-medium">
+      Aur images convert karo →
+    </button>
+  </div>
+</main>
+
+<!-- ═══ BOTTOM BAR ════════════════════════════════════════════════════ -->
+<div id="botBar"
+     class="fixed bottom-0 inset-x-0 max-w-sm mx-auto px-4 pb-8 pt-3 z-20"
+     style="background:linear-gradient(to top,#0A0A0F 58%,transparent)">
+  <button id="convertBtn" disabled
+    class="w-full py-[17px] rounded-2xl font-display font-black text-base
+           flex items-center justify-center gap-2.5
+           transition-all duration-150 active:scale-[.97]
+           disabled:bg-dp-700 disabled:text-gray-700 disabled:shadow-none
+           enabled:bg-violet enabled:text-white enabled:glow-violet">
+    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24"
+         stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+      <line x1="16" y1="13" x2="8" y2="13"/>
+      <line x1="16" y1="17" x2="8" y2="17"/>
+    </svg>
+    PDF Banao
+  </button>
+</div>
+
+<!-- ═══ PROGRESS OVERLAY ══════════════════════════════════════════════ -->
+<div id="overlay"
+     class="fixed inset-0 z-50 hidden flex-col items-center justify-center gap-5"
+     style="background:rgba(10,10,15,0.93);backdrop-filter:blur(16px)">
+  <div class="spin w-16 h-16"></div>
+  <p id="ovTitle" class="font-display font-black text-xl">PDF Ban Raha Hai…</p>
+  <p id="ovSub"   class="text-sm text-gray-500">Thoda ruko</p>
+  <div class="w-48 h-1 rounded-full bg-dp-600 overflow-hidden">
+    <div id="progFill" class="prog h-full bg-violet w-0 rounded-full"></div>
+  </div>
+</div>
+
+<!-- ═══ TOAST ════════════════════════════════════════════════════════ -->
+<div id="toast"
+     class="fixed bottom-28 left-1/2 -translate-x-1/2 z-50
+            bg-dp-700 border border-white/[.07] text-white
+            text-[13px] font-medium px-5 py-2.5 rounded-full
+            whitespace-nowrap pointer-events-none opacity-0 select-none">
+</div>
+
+<footer class="text-center py-6 text-xs text-gray-600">
+  Developed with ❤️ by
+  <a
+    href="https://github.com/Sayedcodes"
+    target="_blank"
+    rel="noopener noreferrer"
+    class="text-violet font-semibold hover:underline"
+  >
+    Sayed Hamza
+  </a>
+</footer>
+
+<!-- ═══ SCRIPTS ════════════════════════════════════════════════════════ -->
+<script>
+// ─── Service Worker ─────────────────────────
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(console.warn);
+}
+
+// ─── PWA Install Banner ──────────────────────
+let deferredPrompt;
+const installBanner = document.getElementById('installBanner');
+const installBtn    = document.getElementById('installBtn');
+const dismissBtn    = document.getElementById('dismissBtn');
+
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  installBanner.classList.replace('hidden','flex');
+});
+
+installBtn.addEventListener('click', async () => {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  const { outcome } = await deferredPrompt.userChoice;
+  if (outcome === 'accepted') {
+    installBanner.classList.replace('flex','hidden');
+    showToast('SnapPDF install ho gaya! 🎉');
+  }
+  deferredPrompt = null;
+});
+
+dismissBtn.addEventListener('click', () => installBanner.classList.replace('flex','hidden'));
+
+// ─── Main App ─────────────────────────────────
+(function () {
+  'use strict';
+
+  let images = [], uid = 0;
+  const $ = id => document.getElementById(id);
+
+  const refs = {
+    camInput:    $('camInput'),
+    galInput:    $('galInput'),
+    imgSection:  $('imgSection'),
+    imgGrid:     $('imgGrid'),
+    imgCount:    $('imgCount'),
+    emptyHint:   $('emptyHint'),
+    clearBtn:    $('clearBtn'),
+    convertBtn:  $('convertBtn'),
+    mainView:    $('mainView'),
+    successView: $('successView'),
+    dlBtn:       $('dlBtn'),
+    restartBtn:  $('restartBtn'),
+    botBar:      $('botBar'),
+    overlay:     $('overlay'),
+    ovTitle:     $('ovTitle'),
+    ovSub:       $('ovSub'),
+    progFill:    $('progFill'),
+    successMeta: $('successMeta'),
+    dropZone:    $('dropZone'),
+    toast:       $('toast'),
+  };
+
+  let toastTimer;
+
+  // ── File input handlers ─────────────────────
+  refs.camInput.addEventListener('change', e => addFiles(e.target.files));
+  refs.galInput.addEventListener('change', e => addFiles(e.target.files));
+
+  function addFiles(fileList) {
+    Array.from(fileList).forEach(f => {
+      if (!f.type.startsWith('image/')) return;
+      images.push({ id: ++uid, file: f, url: URL.createObjectURL(f) });
+    });
+    refs.camInput.value = refs.galInput.value = '';
+    render();
+    if (images.length)
+      showToast(`${images.length} image${images.length > 1 ? 's' : ''} ready ✓`);
+  }
+
+  // ── Drag & Drop ─────────────────────────────
+  refs.dropZone.addEventListener('dragover', e => {
+    e.preventDefault();
+    refs.dropZone.classList.add('border-violet/60', 'bg-violet/10');
+  });
+  ['dragleave','dragend'].forEach(ev =>
+    refs.dropZone.addEventListener(ev, () =>
+      refs.dropZone.classList.remove('border-violet/60','bg-violet/10'))
+  );
+  refs.dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    refs.dropZone.classList.remove('border-violet/60','bg-violet/10');
+    addFiles(Array.from(e.dataTransfer.files));
+  });
+
+  // ── Render ───────────────────────────────────
+  function render() {
+    const has = images.length > 0;
+    refs.imgSection.classList.toggle('hidden', !has);
+    refs.imgSection.classList.toggle('flex', has);
+    refs.emptyHint.classList.toggle('hidden', has);
+    refs.convertBtn.disabled = !has;
+    refs.imgCount.textContent = `${images.length} image${images.length !== 1 ? 's' : ''}`;
+
+    refs.imgGrid.innerHTML = '';
+    images.forEach((img, i) => {
+      const card = document.createElement('div');
+      card.className = 'card-pop relative rounded-xl2 overflow-hidden bg-dp-800 border border-white/[.05]';
+      card.style.aspectRatio = '3/4';
+
+      card.innerHTML = `
+        <img src="${img.url}" alt="Page ${i+1}"
+             class="w-full h-full object-cover" loading="lazy">
+        <div class="absolute top-2 left-2 w-6 h-6 rounded-full
+                    bg-black/70 backdrop-blur-sm
+                    flex items-center justify-center
+                    text-[10px] font-black">${i+1}</div>
+        <button class="del-btn absolute top-2 right-2 w-7 h-7 rounded-full
+                       bg-danger/85 flex items-center justify-center
+                       active:scale-90 transition-transform"
+                data-id="${img.id}" aria-label="Hatao">
+          <svg class="w-3.5 h-3.5 stroke-white" fill="none" viewBox="0 0 24 24"
+               stroke-width="2.8" stroke-linecap="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+        <div class="absolute bottom-0 inset-x-0 flex justify-between px-1.5 pb-2 pt-8"
+             style="background:linear-gradient(to top,rgba(0,0,0,0.78),transparent)">
+          <button class="arr-btn w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center
+                         text-xs text-white active:bg-white/30 transition-colors
+                         ${i===0?'opacity-20 pointer-events-none':''}"
+                  data-dir="left" data-id="${img.id}">◀</button>
+          <button class="arr-btn w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center
+                         text-xs text-white active:bg-white/30 transition-colors
+                         ${i===images.length-1?'opacity-20 pointer-events-none':''}"
+                  data-dir="right" data-id="${img.id}">▶</button>
+        </div>`;
+
+      card.querySelector('.del-btn').addEventListener('click', e => {
+        e.stopPropagation();
+        images = images.filter(x => x.id !== +e.currentTarget.dataset.id);
+        render();
+        showToast('Image remove ho gai');
+      });
+
+      card.querySelectorAll('.arr-btn').forEach(btn => {
+        btn.addEventListener('click', e => {
+          e.stopPropagation();
+          const id  = +btn.dataset.id;
+          const dir = btn.dataset.dir;
+          const idx = images.findIndex(x => x.id === id);
+          const to  = dir === 'left' ? idx - 1 : idx + 1;
+          if (to < 0 || to >= images.length) return;
+          [images[idx], images[to]] = [images[to], images[idx]];
+          render();
+        });
+      });
+
+      refs.imgGrid.appendChild(card);
+    });
+  }
+
+  // ── Clear ───────────────────────────────────
+  refs.clearBtn.addEventListener('click', () => { images = []; render(); });
+
+  // ── Convert to PDF ──────────────────────────
+  refs.convertBtn.addEventListener('click', runConvert);
+
+  async function runConvert() {
+    if (!images.length) return;
+
+    showOverlay(true);
+    refs.ovTitle.textContent = 'Images load ho rahi hain…';
+    refs.progFill.style.width = '0%';
+
+    try {
+      // Load all images
+      const els = await Promise.all(images.map((img, i) =>
+        new Promise((res, rej) => {
+          const el = new Image();
+          el.onload = () => {
+            refs.progFill.style.width = Math.round(((i+1) / images.length) * 50) + '%';
+            refs.ovSub.textContent    = `${i+1} / ${images.length} load hua`;
+            res(el);
+          };
+          el.onerror = rej;
+          el.src = img.url;
+        })
+      ));
+
+      refs.ovTitle.textContent = 'PDF ban raha hai…';
+      await tick();
+
+      const pdf = new window.jspdf.jsPDF({
+        orientation: 'portrait',
+        unit:        'mm',
+        compress:    true
+      });
+
+      const A4W = 210, A4H = 297, PAD = 8;
+      const maxW = A4W - PAD * 2, maxH = A4H - PAD * 2;
+
+      for (let i = 0; i < els.length; i++) {
+        if (i > 0) pdf.addPage();
+        const el = els[i];
+        const ratio = el.naturalWidth / el.naturalHeight;
+        let dW = maxW, dH = dW / ratio;
+        if (dH > maxH) { dH = maxH; dW = dH * ratio; }
+        const x = (A4W - dW) / 2;
+        const y = (A4H - dH) / 2;
+
+        const cvs = document.createElement('canvas');
+        cvs.width  = el.naturalWidth;
+        cvs.height = el.naturalHeight;
+        cvs.getContext('2d').drawImage(el, 0, 0);
+
+        const fmt  = images[i].file.type === 'image/png' ? 'PNG' : 'JPEG';
+        const data = cvs.toDataURL(images[i].file.type, 0.92);
+        pdf.addImage(data, fmt, x, y, dW, dH);
+
+        refs.progFill.style.width = (50 + Math.round(((i+1) / els.length) * 50)) + '%';
+        refs.ovSub.textContent    = `Page ${i+1} of ${els.length} add hua`;
+        await tick();
+      }
+
+      const blob = pdf.output('blob');
+      refs.dlBtn.href       = URL.createObjectURL(blob);
+      refs.dlBtn.download   = `SnapPDF_${new Date().toISOString().slice(0,10)}.pdf`;
+      const kb = (blob.size / 1024).toFixed(0);
+      refs.successMeta.textContent =
+        `${images.length} page${images.length > 1 ? 's' : ''} · ${kb} KB`;
+
+      showOverlay(false);
+      refs.mainView.classList.add('hidden');
+      refs.successView.classList.remove('hidden');
+      refs.botBar.classList.add('hidden');
+
+    } catch (err) {
+      showOverlay(false);
+      showToast('Error! Please try again');
+      console.error(err);
+    }
+  }
+
+  // ── Restart ─────────────────────────────────
+  refs.restartBtn.addEventListener('click', () => {
+    images = [];
+    refs.successView.classList.add('hidden');
+    refs.mainView.classList.remove('hidden');
+    refs.botBar.classList.remove('hidden');
+    render();
+  });
+
+  // ── Helpers ──────────────────────────────────
+  function showOverlay(show) {
+    refs.overlay.classList.toggle('hidden', !show);
+    refs.overlay.classList.toggle('flex', show);
+  }
+
+  function tick() { return new Promise(r => setTimeout(r, 16)); }
+
+  function showToast(msg) {
+    clearTimeout(toastTimer);
+    refs.toast.textContent = msg;
+    refs.toast.classList.remove('opacity-0');
+    refs.toast.classList.add('toast-in');
+    toastTimer = setTimeout(() => {
+      refs.toast.classList.add('opacity-0');
+      refs.toast.classList.remove('toast-in');
+    }, 2500);
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>
